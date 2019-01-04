@@ -18,6 +18,7 @@
  */
 function islandora_paged_content_admin_settings_form(array $form, array &$form_state) {
   form_load_include($form_state, 'inc', 'islandora_paged_content', 'includes/admin.form');
+  form_load_include($form_state, 'inc', 'islandora', 'includes/utilities');
   $get_default_value = function($name, $default) use(&$form_state) {
     return isset($form_state['values'][$name]) ? $form_state['values'][$name] : variable_get($name, $default);
   };
@@ -26,7 +27,7 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
   $pdftotext = $get_default_value('islandora_paged_content_pdftotext', '/usr/bin/pdftotext');
 
   $djatoka_url = $get_default_value('islandora_paged_content_djatoka_url', 'http://localhost:8080/adore-djatoka/');
-  $djatoka_availible_message = islandora_paged_content_admin_settings_form_djatoka_availible_message($djatoka_url);
+  $djatoka_available_message = islandora_paged_content_admin_settings_form_djatoka_available_message($djatoka_url);
   $solr_enabled = module_exists('islandora_solr');
 
   $form = array(
@@ -37,7 +38,7 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
         '#type' => 'textfield',
         '#title' => t('gs (GhostScript)'),
         '#description' => t('GhostScript is used to combine PDF files into a representation of a book or newspaper.<br/>!msg',
-                        array('!msg' => islandora_paged_content_admin_settings_form_executable_available_message($gs))),
+                        array('!msg' => islandora_executable_available_message($gs))),
         '#default_value' => $gs,
         '#prefix' => '<div id="gs-wrapper">',
         '#suffix' => '</div>',
@@ -57,7 +58,7 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
         '#title' => t('pdfinfo'),
         '#description' => t('Pdfinfo is used to extract information needed when ingesting a single PDF into paged content and individual page objects.<br/>!msg',
           array(
-            '!msg' => islandora_paged_content_admin_settings_form_executable_available_message($pdfinfo),
+            '!msg' => islandora_executable_available_message($pdfinfo),
           )
         ),
         '#default_value' => $pdfinfo,
@@ -75,7 +76,7 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
         '#title' => t('pdftotext'),
         '#description' => t('Pdftotext is used to extract text for OCR when ingesting a single PDF into paged content and individual page objects.<br/>!msg',
           array(
-            '!msg' => islandora_paged_content_admin_settings_form_executable_available_message($pdftotext),
+            '!msg' => islandora_executable_available_message($pdftotext),
           )
         ),
         '#default_value' => $pdftotext,
@@ -100,7 +101,7 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
       '#prefix' => '<div id="djatoka-path-wrapper">',
       '#suffix' => '</div>',
       '#title' => t('djatoka URL'),
-      '#description' => filter_xss(t('<strong>Externally accessible</strong> URL to the djatoka instance.<br/>!msg', array('!msg' => $djatoka_availible_message))),
+      '#description' => filter_xss(t('<strong>Externally accessible</strong> URL to the djatoka instance.<br/>!msg', array('!msg' => $djatoka_available_message))),
       '#default_value' => $djatoka_url,
       '#ajax' => array(
         'callback' => 'islandora_paged_content_admin_settings_form_djatoka_ajax_callback',
@@ -177,6 +178,9 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
 /**
  * Gets a message to display if the ocr program provided is accessible or not.
  *
+ * DEPRECATED: This function is a duplicate of
+ * islandora_executable_available_message().
+ *
  * @param string $path
  *   The path to an executable to check for availability.
  * @param string $version
@@ -186,25 +190,11 @@ function islandora_paged_content_admin_settings_form(array $form, array &$form_s
  *   A message in html detailing if the given executable is accessible.
  */
 function islandora_paged_content_admin_settings_form_executable_available_message($path, $version = NULL, $required_version = NULL) {
-  $available = is_executable($path);
-  if ($available) {
-    $image = theme_image(array('path' => 'misc/watchdog-ok.png', 'attributes' => array()));
-    $message = t('Executable found at @path', array('@path' => $path));
-    if ($version) {
-      $message .= t('<br/>Version: @version', array('@version' => $version));
-    }
-    if ($required_version) {
-      $message .= t('<br/>Required Version: @version', array('@version' => $required_version));
-      if (version_compare($version, $required_version) < 0) {
-        $image = theme_image(array('path' => 'misc/watchdog-error.png', 'attributes' => array()));
-      }
-    }
-  }
-  else {
-    $image = theme_image(array('path' => 'misc/watchdog-error.png', 'attributes' => array()));
-    $message = t('Unable to locate executable at @path', array('@path' => $path));
-  }
-  return $image . $message;
+  module_load_include('inc', 'islandora', 'includes/utilities');
+  $message = islandora_deprecated('7.x-1.13', t('Please use islandora_executable_available_message() instead.'));
+  trigger_error(filter_xss($message), E_USER_DEPRECATED);
+
+  return islandora_executable_available_message($path, $version, $required_version);
 }
 
 /**
@@ -232,10 +222,16 @@ function islandora_paged_content_admin_settings_form_gs_ajax_callback(array $for
  * @return string
  *   A message in html detailing if the djatoka is accessible.
  */
-function islandora_paged_content_admin_settings_form_djatoka_availible_message($djatoka_url) {
+function islandora_paged_content_admin_settings_form_djatoka_available_message($djatoka_url) {
   $file_headers = @get_headers($djatoka_url);
-  $djatoka_availible = strstr($file_headers[0], '200') !== FALSE;
-  if ($djatoka_availible) {
+  $djatoka_available = FALSE;
+  foreach ($file_headers as $file_header) {
+    if (strpos($file_header, '200') !== FALSE) {
+      $djatoka_available = TRUE;
+      break;
+    }
+  }
+  if ($djatoka_available) {
     $image = theme_image(array('path' => 'misc/watchdog-ok.png', 'attributes' => array()));
     $message = t('djatoka url is valid.');
   }
