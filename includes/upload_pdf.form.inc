@@ -96,6 +96,8 @@ function islandora_paged_content_upload_pdf_form($form, &$form_state, $model) {
       'hin' => t('Hindi'),
       'jpn' => t('Japanese'),
       'ita' => t('Italian'),
+      'chi_tra' => t('Traditional Chinese'),
+      'chi_sim' => t('Simplified Chinese'),
     );
   }
   $form['text_settings']['extract_text'] = array(
