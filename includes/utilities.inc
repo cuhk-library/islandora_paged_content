@@ -639,6 +639,8 @@ function islandora_paged_content_page_derive_image_datastreams(AbstractObject $o
   if ($ret) {
     // Add dimensions for the JP2.
     islandora_paged_content_add_dimensions_relationships($object);
+  }else{
+      watchdog('islandora_page_content','cannot get large image upload file');
   }
   return $ret;
 }
@@ -662,16 +664,24 @@ function islandora_paged_content_add_dimensions_relationships(AbstractObject $ob
     $temp_file = drupal_tempnam('temporary://', 'dimensions');
     if($object['OBJ']){
         $object['OBJ']->getContent($temp_file);
+    }elseif($object['JPG']){
+        $object['JPG']->getContent($temp_file);
     }
     list($width, $height) = getimagesize($temp_file);
-
-    islandora_paged_content_set_relationship($rels, ISLANDORA_RELS_EXT_URI,
-        'width', $width, 1
-      );
-    islandora_paged_content_set_relationship($rels, ISLANDORA_RELS_EXT_URI,
-        'height', $height, 1
-      );
-
+    if($width){    
+        islandora_paged_content_set_relationship($rels, ISLANDORA_RELS_EXT_URI,
+            'width', $width, 1
+        );
+    }else{
+        watchdog('islandora_paged_content', 'OBJ image width undefined ');
+    }
+    if($height){
+        islandora_paged_content_set_relationship($rels, ISLANDORA_RELS_EXT_URI,
+            'height', $height, 1
+          );
+    }else{
+        watchdog('islandora_paged_content', 'OBJ image height undefined ');
+    }
     drupal_unlink($temp_file);
   }
 }
