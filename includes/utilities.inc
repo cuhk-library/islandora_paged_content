@@ -662,10 +662,13 @@ function islandora_paged_content_add_dimensions_relationships(AbstractObject $ob
     // XXX: ... seems a little odd to grab them from the OBJ/tiff, but they're
     // more widely supported...
     $temp_file = drupal_tempnam('temporary://', 'dimensions');
+    
     if($object['OBJ']){
         $object['OBJ']->getContent($temp_file);
     }elseif($object['JPG']){
         $object['JPG']->getContent($temp_file);
+    }elseif($object['JP2']){
+        $object['JP2']->getContent($temp_file);
     }
     list($width, $height) = getimagesize($temp_file);
     if($width){    
@@ -682,6 +685,7 @@ function islandora_paged_content_add_dimensions_relationships(AbstractObject $ob
     }else{
         watchdog('islandora_paged_content', 'OBJ image height undefined ');
     }
+    
     drupal_unlink($temp_file);
   }
 }
